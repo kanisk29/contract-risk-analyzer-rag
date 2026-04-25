@@ -5,11 +5,12 @@ chromadb
 langchain
 langchain-community
 langchain-core
+sentence-transformers
 langchain-huggingface
 langchain-chroma
 protobuf==3.20.3
 langchain-text-splitters
 rank-bm25
 pydantic
+
 python-dotenv
-sentence-transformers==2.2.2
