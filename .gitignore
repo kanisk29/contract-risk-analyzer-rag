@@ -1,6 +1,6 @@
 venv/
 __pycache__/
 .env
-backend/db/chroma_db/
+db/chroma_db/
 *.pyc
 data/

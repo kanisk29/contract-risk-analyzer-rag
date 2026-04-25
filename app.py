@@ -1,9 +1,13 @@
 import streamlit as st
-import requests
 from pypdf import PdfReader
 import re
-
+from core.retrieval_pipeline import analyze_contract
 st.set_page_config(page_title="Clauser AI", layout="wide")
+
+@st.cache_resource
+def load_pipeline():
+    return analyze_contract
+
 
 st.markdown("""
 <style>
@@ -33,6 +37,10 @@ st.markdown("""
 st.markdown("<div class='header'>Clauser AI</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtle'>Clause-level risk analysis using retrieval grounded in Indian Contract Law</div>", unsafe_allow_html=True)
 
+st.warning(
+    "This tool is for educational purposes only and does NOT constitute legal advice. "
+    "Do not rely on this output for legal decisions."
+)
 st.markdown("<div class='section'>Input</div>", unsafe_allow_html=True)
 
 uploaded_file = st.file_uploader("Upload contract (PDF or TXT)", type=["pdf", "txt"])
@@ -51,8 +59,14 @@ if uploaded_file:
         st.text(text[:3000])
 else:
     text = st.text_area("Paste contract text", height=200, placeholder="Paste your contract here...")
-
-analyze_btn = st.button("Analyze Contract", use_container_width=True)
+agree = st.checkbox(
+    "I understand this tool is for educational purposes only and not legal advice."
+)
+analyze_btn = st.button(
+    "Analyze Contract",
+    use_container_width=True,
+    disabled=not agree
+)
 
 def clean_output(text):
     return re.sub(r'\n\s*\n+', '\n\n', text).strip()
@@ -77,19 +91,17 @@ def parse_clause(text):
     return data
 
 if analyze_btn:
+    if not agree:
+        st.warning("Please acknowledge the disclaimer before proceeding.")
+        st.stop()
+
     if not text or len(text.strip()) < 50:
         st.warning("Please enter a valid contract (at least 50+ characters).")
         st.stop()
+
     with st.spinner("Analyzing contract..."):
-        try:
-            res = requests.post(
-                "http://127.0.0.1:8000/analyze",
-                json={"text": text},
-                timeout=120
-            ).json()
-        except Exception as e:
-            st.error(f"API error: {str(e)}")
-            st.stop()
+        pipeline = load_pipeline()
+        res = pipeline(text)
 
     if not res.get("results") or res["summary"].startswith("Input too short"):
         st.warning("Input is too short or not a valid contract.")

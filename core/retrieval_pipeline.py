@@ -4,17 +4,22 @@ warnings.filterwarnings("ignore")
 import os
 import re
 import time
-from dotenv import load_dotenv
 from groq import Groq
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_classic.retrievers import BM25Retriever,EnsembleRetriever
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+from dotenv import load_dotenv
 load_dotenv()
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+def get_client():
+    key = os.getenv("GROQ_API_KEY")
+    if not key:
+        raise ValueError("GROQ_API_KEY not found")
+    return Groq(api_key=key)
+
 embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en-v1.5")
 
 def get_vectorstore():
@@ -33,17 +38,29 @@ retriever = vecstore.as_retriever(
         "lambda_mult": 0.7
     }
 )
-docs = [
-    Document(page_content=txt, metadata={"id":i})
-    for i,txt in enumerate(raw["documents"],1)
-]
-bm_25 = BM25Retriever.from_documents(docs)
-bm_25.k = 5
-hybrid_retriever = EnsembleRetriever(weights=[0.4,0.6],retrievers=[retriever,bm_25])
+docs = []
+
+if raw and raw.get("documents"):
+    docs = [
+        Document(page_content=txt, metadata={"id": i})
+        for i, txt in enumerate(raw["documents"], 1)
+    ]
+
+if docs:
+    bm_25 = BM25Retriever.from_documents(docs)
+    bm_25.k = 5
+    hybrid_retriever = EnsembleRetriever(
+        retrievers=[retriever, bm_25],
+        weights=[0.4, 0.6]
+    )
+else:
+    print("DB EMPTY → fallback to vector only")
+    hybrid_retriever = retriever
 
 def groq_llm(prompt, retries=3, delay=8):
     for attempt in range(retries):
         try:
+            client = get_client()
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
@@ -158,15 +175,9 @@ def summary(score, risk_count):
 
 def analyze_clause(clause):
     retrieved_docs = hybrid_retriever.invoke(clause)
-    if not retrieved_docs:
-        return (
-            "Clause Type: Unknown\n"
-            "Risk Level: LOW\n"
-            "Why Risky:\n- No relevant legal context found in knowledge base\n"
-            "Legal Basis:\n- N/A\n"
-        )
-
-    context = "\n\n".join([doc.page_content for doc in retrieved_docs[:3]])
+    context = ""
+    if retrieved_docs:
+        context = "\n\n".join([doc.page_content for doc in retrieved_docs[:3]])
 
     prompt = f"""You are an Indian contract risk analysis assistant.
 

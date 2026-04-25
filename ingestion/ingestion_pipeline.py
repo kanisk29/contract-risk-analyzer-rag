@@ -37,7 +37,7 @@ def create_vector_stores(doc_chunks):
     for doc in doc_chunks:
         doc.page_content = doc.page_content.strip()
     embeddings = HuggingFaceEmbeddings(model_name = "BAAI/bge-base-en-v1.5")
-    persist_directory = 'backend/db/chroma_db'
+    persist_directory = 'db/chroma_db'
     embedding_function = embeddings
     vecdb = Chroma.from_documents(collection_metadata={"hnsw:space" : "cosine"},documents=doc_chunks,persist_directory=persist_directory,embedding=embedding_function)
     print("Saved to: ",persist_directory)
