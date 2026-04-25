@@ -20,7 +20,7 @@ def get_client():
         raise ValueError("GROQ_API_KEY not found")
     return Groq(api_key=key)
 
-embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en-v1.5")
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 def get_vectorstore():
     return Chroma(
