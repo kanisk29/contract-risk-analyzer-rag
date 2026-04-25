@@ -10,9 +10,7 @@ langchain-community
 langchain-core
 langchain-huggingface
 langchain-chroma
-langchain-cohere
 langchain-text-splitters
 sentence-transformers
 rank-bm25
-cohere
 pydantic
