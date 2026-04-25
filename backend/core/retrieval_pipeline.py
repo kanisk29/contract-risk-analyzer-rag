@@ -2,13 +2,15 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os
+import re
+import time
 from dotenv import load_dotenv
 from groq import Groq
-
-import re
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain_cohere import CohereRerank
+from langchain_core.documents import Document
+from langchain_classic.retrievers import BM25Retriever,EnsembleRetriever
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
 
@@ -16,174 +18,214 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en-v1.5")
 
 def get_vectorstore():
-    
     return Chroma(
         persist_directory="db/chroma_db",
         embedding_function=embeddings
     )
 
 vecstore = get_vectorstore()
-
-
+raw = vecstore.get()
 retriever = vecstore.as_retriever(
     search_type="mmr",
     search_kwargs={
-        "k": 10,
-        "fetch_k": 25,
+        "k": 5,
+        "fetch_k": 10,
         "lambda_mult": 0.7
     }
 )
+docs = [
+    Document(page_content=txt, metadata={"id":i})
+    for i,txt in enumerate(raw["documents"],1)
+]
+bm_25 = BM25Retriever.from_documents(docs)
+bm_25.k = 5
+hybrid_retriever = EnsembleRetriever(weights=[0.4,0.6],retrievers=[retriever,bm_25])
 
-reranker = CohereRerank(
-    model="rerank-english-v3.0",
-    top_n=5,
-    cohere_api_key=os.getenv("COHERE_API_KEY")
-)
-
-def groq_llm(prompt):
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": "You are an Indian contract risk analysis assistant"},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message.content
-    except:
-        return "Error Analyzing Clause"
-
+def groq_llm(prompt, retries=3, delay=8):
+    for attempt in range(retries):
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": "You are an Indian contract risk analysis assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,
+                temperature=0.2
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            err = str(e)
+            print(f"GROQ ERROR (attempt {attempt+1}): {err}")
+            if "rate_limit" in err and attempt < retries - 1:
+                wait_match = re.search(r'try again in (\d+)m', err)
+                wait = int(wait_match.group(1)) * 60 + 10 if wait_match else delay
+                print(f"Rate limited. Waiting {min(wait, 30)}s...")
+                time.sleep(min(wait, 30))
+            else:
+                return f"Error Analyzing Clause: {err}"
+    return "Error Analyzing Clause: Max retries exceeded"
 
 def split_clauses(text):
-    return [c.strip() for c in re.split(r'\n|\.', text) if len(c.strip()) > 30]
+    numbered = re.split(
+        r'\n(?=\s*(?:clause|article|section|schedule)?\s*\d+[\.\)]\s)',
+        text,
+        flags=re.IGNORECASE
+    )
+    if len(numbered) > 2:
+        clauses = [c.strip() for c in numbered]
+    else:
+        clauses = [c.strip() for c in re.split(r'\n{2,}', text)]
 
+    if len(clauses) <= 2:
+        clauses = re.split(r'(?<=[.!?])\s+(?=[A-Z])', text)
+
+    merged = []
+    for c in clauses:
+        c = c.strip()
+        if not c:
+            continue
+        if len(c) < 60 and merged:
+            merged[-1] = merged[-1] + " " + c
+        else:
+            merged.append(c)
+
+    return [c for c in merged if len(c) >= 40]
+
+def _words(text):
+    return set(re.sub(r'[^\w\s]', '', text.lower()).split())
+
+def unique_clauses(clauses, threshold=0.8):
+    seen, result = [], []
+    for c in clauses:
+        wc = _words(c)
+        is_dup = any(
+            len(wc & _words(s)) / max(len(wc | _words(s)), 1) >= threshold
+            for s in seen
+        )
+        if not is_dup:
+            seen.append(c)
+            result.append(c)
+    return result
+
+RISK_KEYWORDS = [
+    "perpetual", "unlimited", "exclusive", "irrevocable", "sole discretion",
+    "non-refundable", "indemnify", "waive", "forfeit", "penalt",
+    "liquidated damages", "unilateral", "terminate without notice"
+]
 
 def highlight(text):
-    keywords = ["perpetual","unlimited","exclusive","irrevocable","sole discretion"]
-    for k in keywords:
+    for k in RISK_KEYWORDS:
         text = re.sub(k, f"**{k}**", text, flags=re.IGNORECASE)
     return text
 
 def parse_risk(output):
-    text = output.upper()
-
-    if "VERY HIGH" in text:
-        return "HIGH"
-    if "MEDIUM TO HIGH" in text or "MEDIUM-HIGH" in text:
-        return "HIGH"
-    if "HIGH" in text:
-        return "HIGH"
-    if "MEDIUM" in text:
-        return "MEDIUM"
-    if "LOW" in text:
-        return "LOW"
-
+    match = re.search(r'Risk Level\s*:\s*(VERY HIGH|MEDIUM[\s\-]?HIGH|HIGH|MEDIUM|LOW)', output, re.IGNORECASE)
+    if match:
+        val = match.group(1).upper()
+        if "VERY" in val or ("MEDIUM" in val and "HIGH" in val):
+            return "HIGH"
+        if "HIGH" in val:
+            return "HIGH"
+        if "MEDIUM" in val:
+            return "MEDIUM"
     return "LOW"
 
-
-def compute_score(results):
-    score_map = {"LOW":1, "MEDIUM":2, "HIGH":3}
-    total = 0
-    count = 0
-    for r in results:
-        for k,v in score_map.items():
-            if f"Risk Level: {k}" in r:
-                total += v
-                count += 1
-                break
-    return round((total / max(count,1)) * 3.3, 2)
+def compute_score(risks):
+    if not risks:
+        return 0.0
+    high   = risks.count("HIGH")
+    medium = risks.count("MEDIUM")
+    total  = len(risks)
+    raw    = (high * 3 + medium * 2 + (total - high - medium)) / total
+    base   = round((raw - 1) / 2 * 10, 2)
+    penalty = min(high * 0.5, 2.0)
+    return min(round(base + penalty, 2), 10.0)
 
 def interpret_score(score):
-    if score >= 8:
-        return "CRITICAL RISK"
-    elif score >= 6:
-        return "HIGH RISK"
-    elif score >= 4:
-        return "MODERATE RISK"
-    else:
-        return "LOW RISK"
-
+    if score >= 8: return "CRITICAL RISK"
+    if score >= 6: return "HIGH RISK"
+    if score >= 4: return "MODERATE RISK"
+    return "LOW RISK"
 
 def summary(score, risk_count):
-    if risk_count["HIGH"] >= 2:
-        return "Contract contains multiple high-risk clauses"
-    if risk_count["HIGH"] == 1:
-        return "Contract has at least one serious risk"
+    h, m = risk_count["HIGH"], risk_count["MEDIUM"]
+    if h >= 3: return f"Contract is highly risky — {h} critical clauses detected"
+    if h >= 2: return "Contract contains multiple high-risk clauses"
+    if h == 1: return "Contract has at least one serious risk"
+    if m >= 2: return "Contract has several medium-risk clauses worth negotiating"
     return "Contract is relatively safe"
 
-def unique_clauses(clauses):
-    seen = set()
-    res = []
-    for c in clauses:
-        key = c[:60]
-        if key not in seen:
-            seen.add(key)
-            res.append(c)
-    return res
-
-
 def analyze_clause(clause):
-    retrieved_docs = retriever.invoke(clause)
-
+    retrieved_docs = hybrid_retriever.invoke(clause)
     if not retrieved_docs:
-         return "Risk Level: LOW\nWhy Risky\n: No relevant context found"
-    
-    reranked_docs = reranker.compress_documents(retrieved_docs, query=clause)
+        return (
+            "Clause Type: Unknown\n"
+            "Risk Level: LOW\n"
+            "Why Risky:\n- No relevant legal context found in knowledge base\n"
+            "Legal Basis:\n- N/A\n"
+        )
 
-    context = "\n\n".join([doc.page_content for doc in reranked_docs])
+    context = "\n\n".join([doc.page_content for doc in retrieved_docs[:3]])
 
-    prompt = f"""
-                You are an Indian contract risk analysis assistant.
+    prompt = f"""You are an Indian contract risk analysis assistant.
 
-                Input Clause:
-                {clause}
+    Input Clause:
+    {clause}
 
-                Reference Knowledge (authoritative context):
-                {context}
+    Reference Knowledge (supporting context):
+    {context}
 
-                Instructions:
-                - Base your answer ONLY on the reference knowledge.
-                - Risk Level must be exactly one of: LOW, MEDIUM, HIGH (no other variants)
-                - Apply principles from Indian contract law.
-                - Be specific, not generic.
-                - If no significant risk, return LOW.
-                - Do not hallucinate beyond context
+    Instructions:
+    - First understand the clause itself. Do NOT rely on reference knowledge to determine clause type.
+    - Clause Type must be inferred strictly from the clause content.
+    - Use reference knowledge only to support reasoning.
+    - Risk Level must be exactly one of: LOW, MEDIUM, HIGH.
+    - Only mark HIGH if there is clear unfairness, illegality, or strong imbalance.
+    - If clause is standard and reasonable → return LOW.
+    - Do NOT force legal principles if not applicable.
 
-                Output strictly in this format and NOTHING ELSE:
+    Output strictly in this format:
 
-                Clause Type: <type>
+    Clause Type: <type>
 
-                Risk Level: <LOW / MEDIUM / HIGH>
+    Risk Level: <LOW / MEDIUM / HIGH>
 
-                Why Risky:
-                - <write in points>
+    Why Risky:
+    - <point 1>
+    - <point 2>
 
-                Legal Basis:
-                - <relevant principle>
+    Legal Basis:
+    - <relevant principle OR None>
+    """
 
-                Suggested Fix:
-                - <rewrite>
-
-                Keep it concise.
-                """
     return groq_llm(prompt)
-
 
 def analyze_contract(text):
     clauses = split_clauses(text)
     clauses = unique_clauses(clauses)
 
-    results = []
-    risks = []
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    for clause in clauses[:7]:
-        clause = highlight(clause)
-        out = analyze_clause(clause)
-        results.append(out)
-        risks.append(parse_risk(out))
+    results = [None] * len(clauses)
+    risks = [None] * len(clauses)
+    highlighted_clauses = [None] * len(clauses)
 
-    score = compute_score(results)
+    def process(i, clause):
+        h_clause = highlight(clause)
+        out = analyze_clause(h_clause)
+        return i, h_clause, out, parse_risk(out)
 
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(process, i, clause) for i, clause in enumerate(clauses)]
+
+        for future in as_completed(futures):
+            i, h_clause, out, risk = future.result()
+            results[i] = out
+            risks[i] = risk
+            highlighted_clauses[i] = h_clause
+
+    score = compute_score(risks)
     risk_count = {
         "HIGH": risks.count("HIGH"),
         "MEDIUM": risks.count("MEDIUM"),
@@ -192,10 +234,9 @@ def analyze_contract(text):
 
     return {
         "results": results,
+        "clauses": highlighted_clauses,
         "score": score,
         "risk_level": interpret_score(score),
         "summary": summary(score, risk_count),
         "risk_count": risk_count
     }
-
-
