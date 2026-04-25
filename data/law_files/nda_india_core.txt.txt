@@ -1,0 +1,25 @@
+Clause Type: NDA (India)
+
+Legal Basis:
+- Governed by Indian Contract Act, 1872
+- Must satisfy: offer, acceptance, consideration, free consent
+
+Key Requirements:
+- Clear definition of confidential information
+- Defined obligations of receiving party
+- Duration of agreement
+- Exclusions (public info, prior knowledge)
+
+Risk Indicators:
+- Vague definition of confidential information
+- No duration specified
+- No consequences of breach
+- Overly broad restrictions
+
+Risk Level:
+- HIGH if terms are vague or overly restrictive
+
+Safer Alternative:
+- Clearly define scope of confidential information
+- Add reasonable duration
+- Specify remedies for breach

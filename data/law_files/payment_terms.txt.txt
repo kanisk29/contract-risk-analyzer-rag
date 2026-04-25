@@ -1,0 +1,16 @@
+Clause Type: Payment Terms
+
+Risk Indicators:
+- No payment deadline
+- Payment at discretion
+- No penalties
+
+Risk:
+- Cash flow issues
+
+Risk Level:
+- MEDIUM to HIGH
+
+Safer Alternative:
+- Fixed timelines
+- Late payment penalty

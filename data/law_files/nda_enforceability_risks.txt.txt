@@ -1,0 +1,18 @@
+Clause Type: NDA Enforceability Issues (India)
+
+Risk Indicators:
+- Ambiguous or unclear wording
+- Unreasonable restrictions on party
+- No proof mechanism for breach
+
+Legal Insight:
+- Courts require clarity and reasonable scope
+- Burden of proof lies on party alleging breach
+
+Risk Level:
+- MEDIUM to HIGH depending on ambiguity
+
+Safer Alternative:
+- Use precise definitions
+- Avoid excessive restrictions
+- Include audit/logging clauses if needed

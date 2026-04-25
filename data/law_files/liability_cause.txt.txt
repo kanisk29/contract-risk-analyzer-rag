@@ -1,0 +1,14 @@
+Clause Type: Liability
+
+Risk Indicators:
+- Unlimited liability
+- One-sided liability
+
+Risk:
+- High financial exposure
+
+Risk Level:
+- HIGH
+
+Safer Alternative:
+- Cap liability to contract value

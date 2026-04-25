@@ -1,0 +1,18 @@
+Clause Type: Consideration
+
+Legal Basis:
+- Section 2(d), Indian Contract Act
+
+Key Points:
+- Must have value in law
+- Can be past, present, or future (India allows past consideration)
+
+Risk Indicators:
+- No consideration
+- Illusory or impossible consideration
+
+Risk Level:
+- HIGH if absent
+
+Safer Alternative:
+- Clearly define exchange of value

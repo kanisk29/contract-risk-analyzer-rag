@@ -1,0 +1,17 @@
+Clause Type: Void Agreements
+
+Examples:
+- Restraint of trade
+- Restraint of marriage
+- Impossible acts
+- Wager agreements
+
+Risk Indicators:
+- Restricting someone from working entirely
+- Agreements based on illegal activity
+
+Risk Level:
+- VERY HIGH (unenforceable)
+
+Safer Alternative:
+- Replace with reasonable, limited restrictions

@@ -1,0 +1,19 @@
+Clause Type: Non-Compete (India)
+
+Legal Basis:
+- Indian Contract Act (Restraint of Trade)
+
+Risk Indicators:
+- Restricts working after contract ends
+- Broad scope (industry-wide)
+- Long duration
+
+Legal Insight:
+- Post-contract non-compete is generally unenforceable in India
+
+Risk Level:
+- VERY HIGH
+
+Safer Alternative:
+- Use non-solicitation instead
+- Limit restriction during contract only
