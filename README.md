@@ -6,8 +6,7 @@ An automated system for analyzing legal contracts and identifying high-risk clau
 
 - Clause-level risk detection across contract text  
 - Risk classification into LOW, MEDIUM, and HIGH  
-- Legal grounding using principles from the Indian Contract Act, 1872  
-- Mitigation suggestions with safer clause rewrites  
+- Legal grounding using principles from the Indian Contract Act, 1872    
 - Hybrid retrieval combining vector search, keyword search, and reranking  
 
 ## Tech Stack
