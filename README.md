@@ -1,13 +1,13 @@
 # Contract Risk Analyzer (RAG)
 
-An automated system for analyzing legal contracts and identifying high-risk clauses under the framework of Indian Contract Law. The system uses a Retrieval-Augmented Generation pipeline with hybrid search and LLM reasoning to produce structured risk assessments.
+An automated system for analyzing legal contracts and identifying high-risk clauses under the framework of Indian Contract Law. The system uses a Retrieval-Augmented Generation pipeline with vector search, cross encoder reranking and LLM reasoning to produce structured risk assessments.
 
 ## Features
 
 - Clause-level risk detection across contract text  
 - Risk classification into LOW, MEDIUM, and HIGH  
 - Legal grounding using principles from the Indian Contract Act, 1872    
-- Hybrid retrieval combining vector search, keyword search, and reranking  
+- Vector similarity search with MMR-based diversification and cross-encoder reranking
 
 ## Tech Stack
 
