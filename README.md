@@ -34,17 +34,19 @@ Always consult a licensed legal expert before acting on any contract-related mat
 ## System Architecture
 
 
+```
 User Input (PDF/Text)
-↓
+        ↓
 Clause Segmentation
-↓
-Hybrid Retrieval (Chroma + BM25)
-↓
+        ↓
+Vector Retrieval 
+        ↓
 LLM Analysis (Groq - LLaMA 3)
-↓
+        ↓
 Risk Classification + Legal Reasoning
-↓
+        ↓
 Contract Score + Summary
+```
 
 ## Deployment
 
