@@ -3,7 +3,7 @@ warnings.filterwarnings("ignore")
 
 import os 
 from langchain_community.document_loaders import TextLoader,DirectoryLoader
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
