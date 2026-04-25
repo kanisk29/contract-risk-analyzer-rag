@@ -5,7 +5,7 @@ import os
 import re
 import time
 from groq import Groq
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_classic.retrievers import BM25Retriever,EnsembleRetriever
