@@ -7,8 +7,7 @@ import time
 from groq import Groq
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain_core.documents import Document
-from langchain_classic.retrievers import BM25Retriever,EnsembleRetriever
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 load_dotenv()
@@ -29,7 +28,7 @@ def get_vectorstore():
     )
 
 vecstore = get_vectorstore()
-raw = vecstore.get()
+
 retriever = vecstore.as_retriever(
     search_type="mmr",
     search_kwargs={
@@ -38,24 +37,6 @@ retriever = vecstore.as_retriever(
         "lambda_mult": 0.7
     }
 )
-docs = []
-
-if raw and raw.get("documents"):
-    docs = [
-        Document(page_content=txt, metadata={"id": i})
-        for i, txt in enumerate(raw["documents"], 1)
-    ]
-
-if docs:
-    bm_25 = BM25Retriever.from_documents(docs)
-    bm_25.k = 5
-    hybrid_retriever = EnsembleRetriever(
-        retrievers=[retriever, bm_25],
-        weights=[0.4, 0.6]
-    )
-else:
-    print("DB EMPTY → fallback to vector only")
-    hybrid_retriever = retriever
 
 def groq_llm(prompt, retries=3, delay=8):
     for attempt in range(retries):
@@ -174,7 +155,7 @@ def summary(score, risk_count):
     return "Contract is relatively safe"
 
 def analyze_clause(clause):
-    retrieved_docs = hybrid_retriever.invoke(clause)
+    retrieved_docs = retriever.invoke(clause)
     context = ""
     if retrieved_docs:
         context = "\n\n".join([doc.page_content for doc in retrieved_docs[:3]])
